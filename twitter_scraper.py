@@ -22,7 +22,10 @@ class TwitterMonitor:
         self.search_phrase = "Listed on Robinhood"
         self.output_file = "robinhood_listings.json"
         self.last_tweet_id = None
-    
+
+        # Telegram Chat IDs (comma-separated in .env)
+        self.telegram_chat_ids = os.getenv('TELEGRAM_CHAT_IDS').split(",")  
+
     def load_previous_tweets(self):
         """Load previously saved tweets to avoid duplicates"""
         if os.path.exists(self.output_file):
@@ -64,11 +67,13 @@ class TwitterMonitor:
             # Process tweets
             tweets = []
             for tweet in response.data:
+                tweet_link = f"https://twitter.com/i/web/status/{tweet.id}"
                 tweet_data = {
                     'id': tweet.id,
                     'created_at': tweet.created_at.isoformat(),
                     'author_id': tweet.author_id,
-                    'text': tweet.text
+                    'text': tweet.text,
+                    'link': tweet_link  # Add tweet link
                 }
                 tweets.append(tweet_data)
             
@@ -80,21 +85,22 @@ class TwitterMonitor:
             return []
     
     def send_to_telegram(self):
-        """Send the log file to a Telegram bot."""
+        """Send the log file to Telegram accounts."""
         url = f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/sendDocument"
-        try:
-            with open(self.output_file, 'rb') as file:
-                response = requests.post(
-                    url, 
-                    data={'chat_id': os.getenv('TELEGRAM_CHAT_ID')}, 
-                    files={'document': file}
-                )
-            if response.status_code == 200:
-                print("Log file sent to Telegram successfully.")
-            else:
-                print("Failed to send log file to Telegram:", response.text)
-        except Exception as e:
-            print(f"Error sending to Telegram: {str(e)}")
+        for chat_id in self.telegram_chat_ids:
+            try:
+                with open(self.output_file, 'rb') as file:
+                    response = requests.post(
+                        url, 
+                        data={'chat_id': chat_id.strip()}, 
+                        files={'document': file}
+                    )
+                if response.status_code == 200:
+                    print(f"Log file sent to Telegram chat {chat_id.strip()} successfully.")
+                else:
+                    print(f"Failed to send log file to chat {chat_id.strip()}: {response.text}")
+            except Exception as e:
+                print(f"Error sending to Telegram chat {chat_id.strip()}: {str(e)}")
     
     def monitor(self, interval_minutes=5):
         """Continuously monitor Twitter with specified interval"""
